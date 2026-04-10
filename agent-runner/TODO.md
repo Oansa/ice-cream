@@ -1,0 +1,1 @@
+# Fixed Python Environment for agent-runner\n\nCompleted:\n- [x] Updated requirements.txt (removed asyncio, pandas>=2.2.2, numpy>=2.0.0 for Python 3.13)\n\nRemaining:\n- [ ] Delete broken .venv\n- [ ] Recreate venv\n- [ ] pip install -r requirements.txt\n- [ ] Test: python -c \"import pandas; print('Success')\"\n- [ ] Run: cp .env.example .env && python main.py

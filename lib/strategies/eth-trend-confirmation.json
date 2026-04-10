@@ -1,0 +1,290 @@
+{
+  "nodes": [
+    {
+      "id": "trading-pair",
+      "defId": "trading-pair",
+      "position": { "x": 50, "y": 50 },
+      "data": {
+        "label": "Trading Pair",
+        "pair": "ETH/USDT"
+      }
+    },
+    {
+      "id": "timeframe",
+      "defId": "timeframe",
+      "position": { "x": 200, "y": 50 },
+      "data": {
+        "label": "Timeframe",
+        "timeframe": "15m"
+      }
+    },
+    {
+      "id": "price",
+      "defId": "price",
+      "position": { "x": 50, "y": 150 },
+      "data": {
+        "label": "Current Price"
+      }
+    },
+    {
+      "id": "ema-9",
+      "defId": "indicator",
+      "position": { "x": 150, "y": 200 },
+      "data": {
+        "label": "EMA-9",
+        "indicator_name": "EMA",
+        "period": 9
+      }
+    },
+    {
+      "id": "ema-21",
+      "defId": "indicator",
+      "position": { "x": 300, "y": 200 },
+      "data": {
+        "label": "EMA-21",
+        "indicator_name": "EMA",
+        "period": 21
+      }
+    },
+    {
+      "id": "rsi-14",
+      "defId": "indicator",
+      "position": { "x": 450, "y": 200 },
+      "data": {
+        "label": "RSI-14",
+        "indicator_name": "RSI",
+        "period": 14
+      }
+    },
+    {
+      "id": "crosses-above",
+      "defId": "crosses-above",
+      "position": { "x": 225, "y": 300 },
+      "data": {
+        "label": "EMA9 > EMA21"
+      }
+    },
+    {
+      "id": "rsi-gt-30",
+      "defId": "greater-than",
+      "position": { "x": 350, "y": 300 },
+      "data": {
+        "label": "RSI > 30",
+        "threshold": 30
+      }
+    },
+    {
+      "id": "rsi-lt-70",
+      "defId": "less-than",
+      "position": { "x": 475, "y": 300 },
+      "data": {
+        "label": "RSI < 70",
+        "threshold": 70
+      }
+    },
+    {
+      "id": "and-gate",
+      "defId": "and",
+      "position": { "x": 350, "y": 400 },
+      "data": {
+        "label": "All Conditions"
+      }
+    },
+    {
+      "id": "buy-signal",
+      "defId": "buy-signal",
+      "position": { "x": 350, "y": 500 },
+      "data": {
+        "label": "Buy Signal"
+      }
+    },
+    {
+      "id": "position-size",
+      "defId": "position-size",
+      "position": { "x": 50, "y": 500 },
+      "data": {
+        "label": "Position Size",
+        "size_percent": 2
+      }
+    },
+    {
+      "id": "market-buy",
+      "defId": "market-buy",
+      "position": { "x": 350, "y": 600 },
+      "data": {
+        "label": "Market Buy",
+        "cooldown_minutes": 15
+      }
+    },
+    {
+      "id": "take-profit",
+      "defId": "take-profit",
+      "position": { "x": 200, "y": 700 },
+      "data": {
+        "label": "Take Profit 6%",
+        "profit_percent": 6
+      }
+    },
+    {
+      "id": "stop-loss",
+      "defId": "stop-loss",
+      "position": { "x": 350, "y": 700 },
+      "data": {
+        "label": "Stop Loss 3%",
+        "loss_percent": 3
+      }
+    },
+    {
+      "id": "max-duration",
+      "defId": "max-duration",
+      "position": { "x": 500, "y": 700 },
+      "data": {
+        "label": "Max Duration 4h",
+        "max_minutes": 240
+      }
+    },
+    {
+      "id": "market-sell",
+      "defId": "market-sell",
+      "position": { "x": 350, "y": 800 },
+      "data": {
+        "label": "Market Sell"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "price->ema9",
+      "source": "price",
+      "target": "ema-9",
+      "sourceHandle": "price",
+      "targetHandle": "price"
+    },
+    {
+      "id": "price->ema21",
+      "source": "price",
+      "target": "ema-21",
+      "sourceHandle": "price",
+      "targetHandle": "price"
+    },
+    {
+      "id": "price->rsi",
+      "source": "price",
+      "target": "rsi-14",
+      "sourceHandle": "price",
+      "targetHandle": "price"
+    },
+    {
+      "id": "ema9->crosses",
+      "source": "ema-9",
+      "target": "crosses-above",
+      "sourceHandle": "value",
+      "targetHandle": "a"
+    },
+    {
+      "id": "ema21->crosses",
+      "source": "ema-21",
+      "target": "crosses-above",
+      "sourceHandle": "value",
+      "targetHandle": "b"
+    },
+    {
+      "id": "rsi->gt30",
+      "source": "rsi-14",
+      "target": "rsi-gt-30",
+      "sourceHandle": "value",
+      "targetHandle": "a"
+    },
+    {
+      "id": "rsi->lt70",
+      "source": "rsi-14",
+      "target": "rsi-lt-70",
+      "sourceHandle": "value",
+      "targetHandle": "a"
+    },
+    {
+      "id": "crosses->and",
+      "source": "crosses-above",
+      "target": "and-gate",
+      "sourceHandle": "result",
+      "targetHandle": "inputs"
+    },
+    {
+      "id": "gt30->and",
+      "source": "rsi-gt-30",
+      "target": "and-gate",
+      "sourceHandle": "result",
+      "targetHandle": "inputs"
+    },
+    {
+      "id": "lt70->and",
+      "source": "rsi-lt-70",
+      "target": "and-gate",
+      "sourceHandle": "result",
+      "targetHandle": "inputs"
+    },
+    {
+      "id": "and->buy",
+      "source": "and-gate",
+      "target": "buy-signal",
+      "sourceHandle": "result",
+      "targetHandle": "gate"
+    },
+    {
+      "id": "buy->market-buy",
+      "source": "buy-signal",
+      "target": "market-buy",
+      "sourceHandle": "signal",
+      "targetHandle": "signal"
+    },
+    {
+      "id": "position->market-buy",
+      "source": "position-size",
+      "target": "market-buy",
+      "sourceHandle": "size",
+      "targetHandle": "size"
+    },
+    {
+      "id": "market-buy->tp",
+      "source": "market-buy",
+      "target": "take-profit",
+      "sourceHandle": "entry",
+      "targetHandle": "entry_price"
+    },
+    {
+      "id": "market-buy->sl",
+      "source": "market-buy",
+      "target": "stop-loss",
+      "sourceHandle": "entry",
+      "targetHandle": "entry_price"
+    },
+    {
+      "id": "market-buy->md",
+      "source": "market-buy",
+      "target": "max-duration",
+      "sourceHandle": "entry",
+      "targetHandle": "entry"
+    },
+    {
+      "id": "tp->sell",
+      "source": "take-profit",
+      "target": "market-sell",
+      "sourceHandle": "signal",
+      "targetHandle": "signal"
+    },
+    {
+      "id": "sl->sell",
+      "source": "stop-loss",
+      "target": "market-sell",
+      "sourceHandle": "signal",
+      "targetHandle": "signal"
+    },
+    {
+      "id": "md->sell",
+      "source": "max-duration",
+      "target": "market-sell",
+      "sourceHandle": "signal",
+      "targetHandle": "signal"
+    }
+  ]
+}

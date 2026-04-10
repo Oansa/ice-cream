@@ -1,4 +1,4 @@
-const metadata = {
+export const metadata = {
   title: 'Mevolut | Simple B2C Fintech for your Money',
   description:
     'Manage your money the easy way with Mevolut. Track expenses, send money, and grow your savings – safely and simply. Sign up free today!',
@@ -25,4 +25,4 @@ const metadata = {
   locale: 'en-US',
 };
 
-module.exports = { metadata };
+export default metadata;

@@ -1,0 +1,9 @@
+{
+  "agentId": "22",
+  "operatorWallet": "0xcDF7bd4d16e0BDE5570ad0052Aad2dC02B5C51D3",
+  "agentWallet": "0x4C23847001D40188F00aAa70D6FC57eC0c30235B",
+  "registeredAt": "2026-04-06T00:00:00.000Z",
+  "transactionHash": "0xbdd678c392e7e8eaf6275dd5e0220720dcc45f068c3ea30f386fab249226ecf8",
+  "network": "sepolia",
+  "contractAddress": "0x97b07dDc405B0c28B17559aFFE63BdB3632d0ca3"
+}

@@ -1,0 +1,10 @@
+{
+  "agentId": "22",
+  "operatorWallet": "0xcDF7bd4d16e0BDE5570ad0052Aad2dC02B5C51D3",
+  "claimedAt": "2026-04-06T18:09:22.498Z",
+  "transactionHash": "0x696db9398ed3d67772275c2ad32427a297df9aef9012564351fdb03de61526f5",
+  "amountClaimed": "0.001",
+  "vaultBalance": "0.001",
+  "network": "sepolia",
+  "contractAddress": "0x0E7CD8ef9743FEcf94f9103033a044caBD45fC90"
+}

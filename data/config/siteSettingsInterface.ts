@@ -10,6 +10,7 @@ export interface SiteMetadata {
   logoTitle: string;
   socialBanner: string;
   supportEmail: string;
+  siteUrl: string;
 
   email: string;
   twitter: string;

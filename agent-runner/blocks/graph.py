@@ -171,3 +171,43 @@ class StrategyGraph:
     def get_execution_blocks(self) -> List[BlockNode]:
         """Get all execution blocks (orders to place)."""
         return [n for n in self.nodes if n.category == 'execution']
+
+    def validate_connections(self) -> List[str]:
+        """Validate all edges have valid handles according to block schemas.
+
+        Returns:
+            List of validation error messages (empty if all valid)
+        """
+        from .definitions import validate_connection
+
+        errors = []
+        node_map = {n.id: n for n in self.nodes}
+
+        for edge in self.edges:
+            source_node = node_map.get(edge.source)
+            target_node = node_map.get(edge.target)
+
+            # Check nodes exist
+            if not source_node:
+                errors.append(f"Edge source node '{edge.source}' not found in graph")
+                continue
+
+            if not target_node:
+                errors.append(f"Edge target node '{edge.target}' not found in graph")
+                continue
+
+            # Validate the connection
+            valid, error_msg = validate_connection(
+                source_node.defId,
+                edge.sourceHandle,
+                target_node.defId,
+                edge.targetHandle
+            )
+
+            if not valid:
+                errors.append(
+                    f"Invalid edge {edge.source} ({edge.sourceHandle}) "
+                    f"→ {edge.target} ({edge.targetHandle}): {error_msg}"
+                )
+
+        return errors

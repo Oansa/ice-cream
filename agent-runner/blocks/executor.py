@@ -48,8 +48,21 @@ class BlockExecutor:
         self._initialized = False
 
     async def initialize(self):
-        """Initialize the executor - compute execution order."""
+        """Initialize the executor - compute execution order and validate.
+
+        Raises:
+            BlockExecutionError: If graph validation fails
+        """
         try:
+            # Validate graph connections
+            validation_errors = self.graph.validate_connections()
+            if validation_errors:
+                error_msg = "Graph validation failed:\n" + "\n".join(
+                    f"  - {e}" for e in validation_errors
+                )
+                logger.error(error_msg)
+                raise BlockExecutionError(error_msg)
+
             self.execution_order = self.graph.to_execution_order()
             self._initialized = True
             logger.info(f"Block executor initialized with {len(self.execution_order)} blocks")
@@ -125,6 +138,18 @@ class BlockExecutor:
 
         # Gather inputs from incoming edges
         inputs = self._gather_inputs(block, block_results)
+
+        # Log available outputs for debugging (schema-aware)
+        try:
+            from .definitions import get_block_outputs
+            available_outputs = get_block_outputs(block.defId)
+            if available_outputs:
+                logger.debug(
+                    f"Executing block '{block.id}' ({block.defId}) "
+                    f"with {len(inputs)} inputs, outputs available: {available_outputs}"
+                )
+        except Exception:
+            pass  # Silently continue if schema not available
 
         # Execute the block
         try:

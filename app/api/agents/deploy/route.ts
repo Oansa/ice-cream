@@ -20,12 +20,107 @@ const DeployAgentSchema = z.object({
   strategy_graph: z.string().optional(),
 });
 
+/**
+ * Validate strategy graph JSON structure
+ * Checks that all nodes and edges are properly formed
+ */
+function validateStrategyGraphStructure(graphJson: string): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+
+  try {
+    const graph = JSON.parse(graphJson);
+
+    // Check basic structure
+    if (!Array.isArray(graph.nodes)) {
+      errors.push('Strategy graph must have a "nodes" array');
+      return { valid: false, errors };
+    }
+
+    if (!Array.isArray(graph.edges)) {
+      errors.push('Strategy graph must have an "edges" array');
+      return { valid: false, errors };
+    }
+
+    // Validate nodes
+    const nodeIds = new Set<string>();
+    for (let i = 0; i < graph.nodes.length; i++) {
+      const node = graph.nodes[i];
+
+      if (!node.id) {
+        errors.push(`Node ${i} missing required field: id`);
+        continue;
+      }
+
+      if (!node.defId) {
+        errors.push(`Node "${node.id}" missing required field: defId`);
+        continue;
+      }
+
+      nodeIds.add(node.id);
+    }
+
+    // Validate edges reference existing nodes
+    for (let i = 0; i < graph.edges.length; i++) {
+      const edge = graph.edges[i];
+
+      if (!edge.source) {
+        errors.push(`Edge ${i} missing required field: source`);
+        continue;
+      }
+
+      if (!edge.target) {
+        errors.push(`Edge ${i} missing required field: target`);
+        continue;
+      }
+
+      if (!edge.sourceHandle) {
+        errors.push(`Edge ${i} missing required field: sourceHandle`);
+        continue;
+      }
+
+      if (!edge.targetHandle) {
+        errors.push(`Edge ${i} missing required field: targetHandle`);
+        continue;
+      }
+
+      // Check nodes exist
+      if (!nodeIds.has(edge.source)) {
+        errors.push(`Edge ${i} references non-existent source node: ${edge.source}`);
+      }
+
+      if (!nodeIds.has(edge.target)) {
+        errors.push(`Edge ${i} references non-existent target node: ${edge.target}`);
+      }
+    }
+
+    return { valid: errors.length === 0, errors };
+  } catch (parseError) {
+    errors.push(`Invalid JSON: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+    return { valid: false, errors };
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
     // Validate input
     const validatedData = DeployAgentSchema.parse(body);
+
+    // If strategy graph is provided, validate it
+    if (validatedData.strategy_graph) {
+      const graphValidation = validateStrategyGraphStructure(validatedData.strategy_graph);
+
+      if (!graphValidation.valid) {
+        return NextResponse.json(
+          {
+            error: 'Invalid strategy graph',
+            details: graphValidation.errors,
+          },
+          { status: 400 }
+        );
+      }
+    }
 
     // Generate unique ID for the agent
     const agentId = uuidv4();

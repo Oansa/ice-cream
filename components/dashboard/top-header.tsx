@@ -27,7 +27,7 @@ export const DashboardTopHeader = ({
       <div className="relative flex-1 md:max-w-md">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-gray-500" />
         <Input
-          placeholder="Search tokens, pools, actions…"
+          placeholder="Search agents, strategies…"
           className={cn(
             'h-10 rounded-full pl-10',
             'bg-white/70 dark:bg-gray-950/40',

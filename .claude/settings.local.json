@@ -4,7 +4,9 @@
       "Bash(mv postcss.config.mjs postcss.config.mjs.backup)",
       "Bash(mv postcss.config.js postcss.config.cjs)",
       "Bash(npm install:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx hardhat:*)"
     ]
   }
 }

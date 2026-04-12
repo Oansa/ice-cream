@@ -65,6 +65,11 @@ class KrakenCLI:
 
     def validate_connection(self) -> bool:
         """Validate Kraken connection is online and authenticated."""
+        # In paper trading mode, skip CLI validation
+        if PAPER_TRADING:
+            logger.info("📄 Paper trading mode - skipping CLI validation")
+            return True
+
         try:
             result = self._run_command(["status"])
             # Check if system is online

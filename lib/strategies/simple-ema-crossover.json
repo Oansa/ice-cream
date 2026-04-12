@@ -1,0 +1,142 @@
+{
+  "nodes": [
+    {
+      "id": "pair",
+      "defId": "trading-pair",
+      "position": { "x": 50, "y": 50 },
+      "config": { "pair": "ETH/USDT" }
+    },
+    {
+      "id": "tf",
+      "defId": "timeframe",
+      "position": { "x": 200, "y": 50 },
+      "config": { "timeframe": "15m" }
+    },
+    {
+      "id": "price",
+      "defId": "price",
+      "position": { "x": 50, "y": 150 },
+      "config": {}
+    },
+    {
+      "id": "ema9",
+      "defId": "indicator",
+      "position": { "x": 150, "y": 250 },
+      "config": { "indicator_name": "EMA", "period": 9 }
+    },
+    {
+      "id": "ema21",
+      "defId": "indicator",
+      "position": { "x": 300, "y": 250 },
+      "config": { "indicator_name": "EMA", "period": 21 }
+    },
+    {
+      "id": "crosses",
+      "defId": "crosses-above",
+      "position": { "x": 225, "y": 350 },
+      "config": {}
+    },
+    {
+      "id": "buy_signal",
+      "defId": "buy-signal",
+      "position": { "x": 225, "y": 450 },
+      "config": {}
+    },
+    {
+      "id": "market_buy",
+      "defId": "market-buy",
+      "position": { "x": 225, "y": 550 },
+      "config": { "position_size_percent": 2 }
+    },
+    {
+      "id": "take_profit",
+      "defId": "take-profit",
+      "position": { "x": 100, "y": 650 },
+      "config": { "profit_percent": 6 }
+    },
+    {
+      "id": "stop_loss",
+      "defId": "stop-loss",
+      "position": { "x": 350, "y": 650 },
+      "config": { "loss_percent": 3 }
+    },
+    {
+      "id": "market_sell",
+      "defId": "market-sell",
+      "position": { "x": 225, "y": 750 },
+      "config": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "price_to_ema9",
+      "source": "price",
+      "target": "ema9",
+      "sourceHandle": "value",
+      "targetHandle": "price"
+    },
+    {
+      "id": "price_to_ema21",
+      "source": "price",
+      "target": "ema21",
+      "sourceHandle": "value",
+      "targetHandle": "price"
+    },
+    {
+      "id": "ema9_to_crosses",
+      "source": "ema9",
+      "target": "crosses",
+      "sourceHandle": "value",
+      "targetHandle": "a"
+    },
+    {
+      "id": "ema21_to_crosses",
+      "source": "ema21",
+      "target": "crosses",
+      "sourceHandle": "value",
+      "targetHandle": "b"
+    },
+    {
+      "id": "crosses_to_signal",
+      "source": "crosses",
+      "target": "buy_signal",
+      "sourceHandle": "result",
+      "targetHandle": "gate"
+    },
+    {
+      "id": "signal_to_buy",
+      "source": "buy_signal",
+      "target": "market_buy",
+      "sourceHandle": "signal",
+      "targetHandle": "signal"
+    },
+    {
+      "id": "buy_to_tp",
+      "source": "market_buy",
+      "target": "take_profit",
+      "sourceHandle": "entry",
+      "targetHandle": "entry_price"
+    },
+    {
+      "id": "buy_to_sl",
+      "source": "market_buy",
+      "target": "stop_loss",
+      "sourceHandle": "entry",
+      "targetHandle": "entry_price"
+    },
+    {
+      "id": "tp_to_sell",
+      "source": "take_profit",
+      "target": "market_sell",
+      "sourceHandle": "signal",
+      "targetHandle": "signal"
+    },
+    {
+      "id": "sl_to_sell",
+      "source": "stop_loss",
+      "target": "market_sell",
+      "sourceHandle": "signal",
+      "targetHandle": "signal"
+    }
+  ]
+}

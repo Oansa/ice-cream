@@ -13,8 +13,8 @@ from config import (
     PAPER_TRADING,
     validate_config
 )
-from kraken import KrakenCLI, KrakenCLIError
 from agent import TradingAgent
+from market_data_client import MarketDataClient
 
 logger = logging.getLogger("ice_cream_runner")
 
@@ -24,7 +24,6 @@ class AgentRunner:
 
     def __init__(self):
         self.agents: Dict[str, TradingAgent] = {}
-        self.kraken = KrakenCLI()
         self.supabase = None
         self.running = False
         self._agent_tasks: Dict[str, asyncio.Task] = {}
@@ -56,11 +55,20 @@ class AgentRunner:
             logger.error(f"❌ Failed to initialize Supabase: {e}")
             raise
 
-        # Validate Kraken connection
-        logger.info("🔌 Validating Kraken connection...")
-        if not self.kraken.validate_connection():
-            raise KrakenCLIError("Failed to validate Kraken connection")
-        logger.info("✅ Kraken connection validated")
+        # Validate market data API (Next.js server on localhost:3000). 
+        logger.info("🔌 Validating market data API...")
+        if PAPER_TRADING:
+            logger.info("🧪 Paper trading — market data API check optional")
+        else:
+            client = MarketDataClient("http://localhost:3000")
+            client.init_session()
+            probe = await client.get_price("BTC")
+            if not probe.success:
+                raise RuntimeError(
+                    f"Market data API unreachable. "
+                    "Start the Next.js server on localhost:3000.",
+                )
+            logger.info(f"✅ Market data API OK (BTC: ${probe.price})")
 
         # Load active agents from database
         await self.load_agents_from_db()
@@ -80,7 +88,7 @@ class AgentRunner:
             if result.data:
                 for agent_config in result.data:
                     agent_id = str(agent_config['id'])
-                    self.agents[agent_id] = TradingAgent(agent_config, self.kraken, self.supabase)
+                    self.agents[agent_id] = TradingAgent(agent_config, self.supabase)
                     logger.debug(f"Loaded agent: {agent_config.get('name')} (ID: {agent_id})")
 
         except Exception as e:
@@ -132,7 +140,7 @@ class AgentRunner:
                 for agent_id in new_ids:
                     agent_config = next((a for a in result.data if str(a['id']) == agent_id), None)
                     if agent_config:
-                        self.agents[agent_id] = TradingAgent(agent_config, self.kraken, self.supabase)
+                        self.agents[agent_id] = TradingAgent(agent_config, self.supabase)
                         # Start the new agent
                         task = asyncio.create_task(self.run_agent(self.agents[agent_id]))
                         self._agent_tasks[agent_id] = task

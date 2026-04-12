@@ -9,20 +9,38 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/shared/ui/sheet';
-import {
-  dashboardNavItems,
-  statCards,
-  topTokensByMarketCap,
-  watchlist,
-} from '@/data/dashboard/mock-data';
+import useTradingStore from '@/lib/stores/useTradingStore';
+import { useWeb3 } from '@/hooks/useWeb3';
+import { dashboardNavItems } from '@/data/dashboard/mock-data';
 import { DashboardSidebar } from '@/components/dashboard/sidebar';
 import { DashboardTopHeader } from '@/components/dashboard/top-header';
 import { DashboardHeader } from '@/components/dashboard/dashboard-header';
-import { StatsCardsRow } from '@/components/dashboard/stats-cards';
-import { TokensTable } from '@/components/dashboard/tokens-table';
+import { WalletOverviewCard } from '@/components/dashboard/wallet-overview-card';
+import { RunningAgentsSection } from '@/components/dashboard/running-agents-section';
 import { RightPanel } from '@/components/dashboard/right-panel';
+import React, { useEffect } from 'react';
+import { ethers } from 'ethers';
 
 export const DashboardShell = () => {
+  const store = useTradingStore();
+  const { provider, address, isConnected } = useWeb3();
+
+  // Sync web3 state to store
+  useEffect(() => {
+    if (isConnected && address && provider) {
+      store.setWeb3Connected(true, address);
+      store.fetchWalletBalance(provider);
+    } else {
+      store.setWeb3Connected(false, null);
+    }
+  }, [isConnected, address, provider]);
+
+  React.useEffect(() => {
+    store.fetchAgents();
+    const interval = setInterval(() => store.fetchAgents(), 10000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <div className="w-full">
       <div className="w-full bg-gradient-to-b from-primary-500/10 via-white to-white dark:from-primary-500/10 dark:via-gray-950 dark:to-gray-950">
@@ -33,7 +51,6 @@ export const DashboardShell = () => {
                 <DashboardSidebar
                   activeKey="dashboard"
                   items={dashboardNavItems}
-                  watchlistItems={watchlist}
                   className="h-full"
                 />
               </div>
@@ -63,7 +80,6 @@ export const DashboardShell = () => {
                       <DashboardSidebar
                         activeKey="dashboard"
                         items={dashboardNavItems}
-                        watchlistItems={watchlist}
                         className="h-full"
                       />
                     </div>
@@ -78,13 +94,11 @@ export const DashboardShell = () => {
 
               <DashboardHeader className="mt-6" />
 
-              <StatsCardsRow items={statCards} className="mt-6" />
+              <div className="mt-6">
+                <WalletOverviewCard className="mt-6" />
+              </div>
 
-              <TokensTable
-                title="Top tokens by market capitalization"
-                rows={topTokensByMarketCap}
-                className="mt-6"
-              />
+              <RunningAgentsSection className="mt-6" />
 
               <div className="mt-6 lg:hidden">
                 <RightPanel />

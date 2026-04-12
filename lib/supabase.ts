@@ -13,7 +13,9 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 export const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Server-side Supabase client (for API routes with elevated privileges)
-export const supabaseServer = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+export const supabaseServer = process.env.SUPABASE_SERVICE_ROLE_KEY 
+  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+  : null;
 
 // Type exports for database operations
 export type Database = {

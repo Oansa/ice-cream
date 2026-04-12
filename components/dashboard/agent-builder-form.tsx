@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -9,13 +9,15 @@ import { Button } from '@/components/shared/ui/button';
 import { Input } from '@/components/shared/ui/input';
 import { GlassCard } from '@/components/dashboard/glass';
 import { cn } from '@/lib/utils';
-import type { AgentConfig, DeployedAgent, StrategyType } from '@/lib/agent-builder';
+import type { AgentConfig, DeployedAgent } from '@/lib/agent-builder';
 import {
   SUPPORTED_STRATEGIES,
   COMMON_TOKEN_PAIRS,
   TRIGGER_EXAMPLES,
   deployAgent,
 } from '@/lib/agent-builder';
+import type { SavedAgentRecord } from '@/lib/saved-agents';
+import { useAgentBuilderSave } from '@/components/dashboard/agent-builder-save-context';
 
 // Validation schema
 const FormSchema = z.object({
@@ -30,15 +32,25 @@ const FormSchema = z.object({
     .string()
     .refine((val) => !isNaN(parseFloat(val)), 'Stop loss must be a number')
     .refine((val) => parseFloat(val) >= 0 && parseFloat(val) <= 100, 'Stop loss must be between 0 and 100'),
+  strategy_graph_json: z.string().optional(),
 });
 
 type FormData = z.infer<typeof FormSchema>;
 
 interface AgentBuilderFormProps {
   onAgentDeployed?: (agent: DeployedAgent) => void;
+  /** When false, omit the page heading (shell provides layout + title). */
+  showHeader?: boolean;
+  /** Hydrate fields from a saved library record (form or drag draft). */
+  initialDraft?: SavedAgentRecord | null;
 }
 
-export const AgentBuilderForm = ({ onAgentDeployed }: AgentBuilderFormProps) => {
+export const AgentBuilderForm = ({
+  onAgentDeployed,
+  showHeader = true,
+  initialDraft = null,
+}: AgentBuilderFormProps) => {
+  const { registerSave } = useAgentBuilderSave();
   const [isLoading, setIsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -48,8 +60,8 @@ export const AgentBuilderForm = ({ onAgentDeployed }: AgentBuilderFormProps) => 
     register,
     handleSubmit,
     formState: { errors },
-    watch,
     reset,
+    getValues,
   } = useForm<FormData>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
@@ -59,10 +71,47 @@ export const AgentBuilderForm = ({ onAgentDeployed }: AgentBuilderFormProps) => 
       trigger: '',
       position_size: '100',
       stop_loss_pct: '5',
+      strategy_graph_json: '',
     },
   });
 
-  const selectedStrategy = watch('strategy_type') as StrategyType;
+  useEffect(() => {
+    if (!initialDraft?.id) {
+      return;
+    }
+    reset({
+      name: initialDraft.name,
+      strategy_type: initialDraft.strategy_type,
+      token_pair: initialDraft.token_pair,
+      trigger: initialDraft.trigger,
+      position_size: initialDraft.position_size,
+      stop_loss_pct: initialDraft.stop_loss_pct,
+      strategy_graph_json: initialDraft.strategy_graph_json ?? '',
+    });
+  }, [initialDraft?.id, initialDraft, reset]);
+
+  useEffect(() => {
+    registerSave(() => {
+      const v = getValues();
+      if (!v.name?.trim() || v.name.trim().length < 3) {
+        return null;
+      }
+      if (!v.trigger?.trim()) {
+        return null;
+      }
+      return {
+        mode: 'form' as const,
+        name: v.name.trim(),
+        strategy_type: v.strategy_type,
+        token_pair: v.token_pair,
+        trigger: v.trigger.trim(),
+        position_size: v.position_size,
+        stop_loss_pct: v.stop_loss_pct,
+        strategy_graph_json: v.strategy_graph_json?.trim() ?? '',
+      };
+    });
+    return () => registerSave(null);
+  }, [registerSave, getValues]);
 
   const onSubmit = async (data: FormData) => {
     setIsLoading(true);
@@ -77,6 +126,9 @@ export const AgentBuilderForm = ({ onAgentDeployed }: AgentBuilderFormProps) => 
         trigger: data.trigger,
         position_size: parseFloat(data.position_size),
         stop_loss_pct: parseFloat(data.stop_loss_pct),
+        ...(data.strategy_graph_json?.trim()
+          ? { strategy_graph: data.strategy_graph_json.trim() }
+          : {}),
       };
 
       const agent = await deployAgent(config);
@@ -97,13 +149,14 @@ export const AgentBuilderForm = ({ onAgentDeployed }: AgentBuilderFormProps) => 
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-50">Build Your Trading Agent</h2>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-          Configure a strategy and deploy it to start paper trading immediately
-        </p>
-      </div>
+      {showHeader ? (
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-50">Build Your Trading Agent</h2>
+          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+            Configure a strategy and deploy it to start paper trading immediately
+          </p>
+        </div>
+      ) : null}
 
       {/* Success Message */}
       {successMessage && (
@@ -262,6 +315,29 @@ export const AgentBuilderForm = ({ onAgentDeployed }: AgentBuilderFormProps) => 
               />
               {errors.stop_loss_pct && <p className="text-xs text-red-500">{errors.stop_loss_pct.message}</p>}
             </div>
+          </div>
+        </GlassCard>
+
+        {/* Strategy Graph JSON */}
+        <GlassCard className="p-6">
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+              Strategy Graph (JSON) <span className="text-gray-500 text-xs font-normal">(Optional)</span>
+            </label>
+            <textarea
+              {...register('strategy_graph_json')}
+              placeholder="Paste your strategy graph JSON here. Example: lib/strategies/simple-ema-crossover.json"
+              rows={8}
+              className={cn(
+                'w-full rounded-xl bg-white/60 dark:bg-gray-950/30 border-gray-200/70 dark:border-gray-800/60 border p-3 font-mono text-sm',
+                'text-gray-900 dark:text-gray-50 resize-none',
+                errors.strategy_graph_json && 'border-red-500'
+              )}
+            />
+            <p className="text-xs text-gray-600 dark:text-gray-400">
+              Paste a complete strategy graph JSON to use a pre-built strategy. Leave empty to use default settings.
+            </p>
+            {errors.strategy_graph_json && <p className="text-xs text-red-500">{errors.strategy_graph_json.message}</p>}
           </div>
         </GlassCard>
 

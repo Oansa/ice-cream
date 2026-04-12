@@ -142,6 +142,13 @@ export async function POST(request: NextRequest) {
     };
 
     // Insert into Supabase
+    if (!supabaseServer) {
+      return NextResponse.json(
+        { error: 'Server not configured - missing SUPABASE_SERVICE_ROLE_KEY' },
+        { status: 500 }
+      );
+    }
+
     const { data, error } = await supabaseServer
       .from('agents')
       .insert([agentRecord])

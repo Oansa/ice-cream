@@ -19,11 +19,13 @@
     "paths": {
       "@/components/*": ["components/*"],
       "@/data/*": ["data/*"],
+      "@/hooks/*": ["hooks/*"],
       "@/layouts/*": ["layouts/*"],
       "@/css/*": ["css/*"],
       "@/lib/*": ["lib/*"],
       "@/theme/*": ["theme/*"],
-      "@/app/*": ["app/*"]
+      "@/app/*": ["app/*"],
+      "@/types/*": ["types/*"]
     },
     "plugins": [
       {
@@ -43,5 +45,5 @@
     "**/*.json",
     ".next/types/**/*.ts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "vibe-coding-starter"]
 }

@@ -5,7 +5,8 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 
 from config import PAPER_TRADING, POLL_INTERVAL, USE_REALTIME_FEED, REALTIME_FEED_URL
-from kraken import KrakenCLI, KrakenCLIError
+from market_data_client import MarketDataClient, MarketPrice
+from virtual_balance import VirtualBalance
 from logger import get_agent_logger
 from market_feed import RealTimeMarketFeed
 from strategies.spot import SpotStrategy
@@ -19,7 +20,7 @@ logger = logging.getLogger("ice_cream_runner")
 class TradingAgent:
     """Represents a single configured trading agent."""
 
-    def __init__(self, config: Dict[str, Any], kraken: KrakenCLI, supabase):
+    def __init__(self, config: Dict[str, Any], supabase): 
         self.agent_id = config["id"]
         self.name = config["name"]
         self.strategy_type = config["strategy_type"]  # SPOT, DCA, SNIPER, MARGIN, MEME, ARBITRAGE, VISUAL
@@ -31,7 +32,12 @@ class TradingAgent:
         self.user_id = config.get("user_id")
         self.strategy_graph_json = config.get("strategy_graph")
 
-        self.kraken = kraken
+        # Market data client for price fetching via Next.js API
+        self.market_data_client = MarketDataClient("http://localhost:3000")
+        self.market_data_client.init_session()
+        self.balance = VirtualBalance(500.0) if PAPER_TRADING else None
+        self.current_action = 'HOLD'
+        self.kraken = None  # Legacy
         self.supabase = supabase
 
         # Trading state
@@ -67,21 +73,29 @@ class TradingAgent:
         try:
             self.agent_logger.info(f"Starting cycle for {self.token_pair}")
 
-            # Get current market data, using websocket feed if enabled
-            ticker_data = await self._get_ticker_data()
-            current_price = self._extract_price(ticker_data)
-
-            if current_price <= 0:
-                self.agent_logger.warning(f"Could not get valid price for {self.token_pair}")
-                await self.update_agent_status("ERROR")
+            # Fetch current market price via Next.js API
+            # Converts token_pair (e.g., "ETH/USD") to symbol (e.g., "ETH")
+            symbol = self.token_pair.split("/")[0].upper()
+            result = await self.market_data_client.get_price(symbol, self.token_pair)
+            
+            if not result.success:
+                err = result.error or "Failed to fetch market data"
+                self.agent_logger.warning(
+                    f"Market data unavailable for pair={self.token_pair} symbol={symbol}: {err}",
+                )
+                self.current_action = 'HOLD'
+                await self.update_agent_stats()
                 return
 
-            self.agent_logger.debug(f"Current price for {self.token_pair}: {current_price}")
+            current_price = result.price
+            self._mark_price = current_price
+            self.agent_logger.debug(f"Current price for {self.token_pair}: ${current_price}")
 
             # Get price history for strategy evaluation
             price_history = self._get_price_history()
 
             if self.block_executor:
+                ticker_data = await self._compose_ticker_from_bridge(current_price)
                 market_data = self._build_graph_market_data(ticker_data, current_price, price_history)
                 result = await self.block_executor.execute_cycle(market_data)
 
@@ -99,21 +113,26 @@ class TradingAgent:
                 await self.check_stop_loss(current_price)
                 return
 
-            # Evaluate trigger condition
             should_trade = await self.evaluate_trigger(current_price, price_history)
-
-            if should_trade:
-                self.agent_logger.info(f"Trigger condition met for {self.token_pair}")
-                await self.execute_trade("buy", current_price)
+            if self.position:
+                should_sell = self.spot_strategy.should_sell(current_price, self.entry_price, self.stop_loss_pct)
+                if should_sell:
+                    self.current_action = 'SELL'
+                    await self.execute_trade("sell", current_price)
+                else:
+                    self.current_action = 'HOLD'
             else:
-                self.agent_logger.debug(f"No trade signal for {self.token_pair}")
+                if should_trade:
+                    self.current_action = 'BUY'
+                    self.agent_logger.info(f"Trigger condition met for {self.token_pair}")
+                    await self.execute_trade("buy", current_price)
+                else:
+                    self.current_action = 'HOLD'
+                    self.agent_logger.debug(f"No trade signal for {self.token_pair}")
 
             # Update agent status
             await self.update_agent_status("ACTIVE")
 
-        except KrakenCLIError as e:
-            self.agent_logger.error(f"Kraken CLI error: {e.message}")
-            await self.update_agent_status("ERROR")
         except Exception as e:
             self.agent_logger.error(f"Unexpected error in run_cycle: {e}")
             await self.update_agent_status("ERROR")
@@ -142,12 +161,26 @@ class TradingAgent:
         return 0.0
 
     def _get_price_history(self) -> list:
-        """Get OHLC price history for strategy analysis."""
-        try:
-            ohlc_data = self.kraken.get_ohlc(self.token_pair, interval=60)  # 1-hour candles
-            return ohlc_data if ohlc_data else []
-        except KrakenCLIError:
-            return []
+        """OHLC history: not exposed via the HTTP bridge yet — return []. (No WSL/CLI.)"""
+        return []
+
+    async def _compose_ticker_from_bridge(self, current_price: float) -> Dict[str, Any]:
+        """
+        Build a ticker-shaped dict for graph/strategy code.
+        Last price comes from the HTTP bridge; optional Kraken WebSocket enriches fields.
+        """
+        if self.realtime_feed is not None:
+            try:
+                ticker = await self.realtime_feed.get_latest_ticker()
+                if ticker and ticker.get("last"):
+                    return ticker
+            except Exception as exc:
+                self.agent_logger.warning(f"Realtime feed failed: {exc}")
+        return {
+            "last": current_price,
+            "c": [current_price, "0"],
+            "volume": [0.0, 0.0],
+        }
 
     def _build_graph_market_data(
         self,
@@ -188,17 +221,12 @@ class TradingAgent:
             await self.execute_trade(direction, current_price, amount_override=amount)
 
     async def _get_ticker_data(self) -> Dict[str, Any]:
-        """Fetch ticker data using websocket feed if available, otherwise fallback to Kraken CLI."""
-        if self.realtime_feed is not None:
-            try:
-                ticker = await self.realtime_feed.get_latest_ticker()
-                if ticker and ticker.get('last'):
-                    return ticker
-                self.agent_logger.debug("Realtime feed returned no valid ticker, falling back to Kraken CLI")
-            except Exception as exc:
-                self.agent_logger.warning(f"Realtime feed failed: {exc}")
-
-        return self.kraken.get_ticker(self.token_pair)
+        """Ticker payload from market data API (Next.js server on localhost:3000)."""
+        symbol = self.token_pair.split("/")[0].upper()
+        res = await self.market_data_client.get_price(symbol, self.token_pair)
+        if not res.success:
+            return {}
+        return await self._compose_ticker_from_bridge(res.price)
 
     async def evaluate_trigger(self, current_price: float, price_history: list) -> bool:
         """Evaluate if trigger condition is met based on strategy type."""
@@ -222,11 +250,10 @@ class TradingAgent:
             return self.dca_strategy.should_buy(self.last_trade_at, interval_hours)
 
         elif self.strategy_type == "SNIPER":
-            try:
-                orderbook = self.kraken.get_orderbook(self.token_pair)
-                return self.sniper_strategy.should_buy(self.token_pair, orderbook)
-            except KrakenCLIError:
-                return False
+            self.agent_logger.debug(
+                "SNIPER needs orderbook data; orderbook is not available via the HTTP bridge — skipping",
+            )
+            return False
 
         elif self.strategy_type == "MARGIN":
             # Margin trading - similar to spot but with leverage
@@ -254,82 +281,64 @@ class TradingAgent:
             return False
 
     async def execute_trade(self, direction: str, price: float, amount_override: Optional[float] = None):
-        """Place the order via KrakenCLI and record outcome."""
-        try:
-            # Calculate position size
-            if self.strategy_type == "SPOT":
-                balance = self.kraken.get_balance()
-                volume = self.spot_strategy.calculate_position_size(balance, self.position_size, price)
-            elif self.strategy_type == "DCA":
-                balance = self.kraken.get_balance()
-                dca_amount = self.dca_strategy.calculate_dca_amount(self.position_size)
-                volume = dca_amount / price if price > 0 else 0
-            elif self.strategy_type == "SNIPER":
-                volume = self.sniper_strategy.calculate_snipe_size(self.position_size, price)
-            elif self.strategy_type == "VISUAL":
-                volume = amount_override if amount_override is not None else self.position_size / price if price > 0 else 0
-            else:
-                # Default calculation
-                volume = amount_override if amount_override is not None else self.position_size / price if price > 0 else 0
+        """Paper: simulated balance. Live: order placement is not wired — log and skip (prices still via HTTP)."""
+        usd_amount = self.position_size if amount_override is None else float(amount_override) * price
+        base_symbol = self.token_pair.split("/")[0]
+        qty = 0.0
 
-            if volume <= 0:
-                self.agent_logger.warning(f"Calculated volume is {volume}, skipping trade")
-                return
-
-            volume_str = f"{volume:.6f}"
-
-            self.agent_logger.info(
-                f"{self.token_pair} | Placing {direction.upper()} order | Volume: {volume_str} | Paper: {PAPER_TRADING}"
+        if self.balance is None:
+            self.agent_logger.warning(
+                "execute_trade skipped: live mode has no exchange order API; "
+                "market data still uses the Node HTTP bridge only.",
             )
+            return
 
-            # Place the order
-            order_result = self.kraken.place_order(
-                pair=self.token_pair,
-                direction=direction,
-                volume=volume_str,
-                order_type="market",
-                paper=PAPER_TRADING
-            )
+        if direction == "buy":
+            success = self.balance.buy(self.token_pair, usd_amount, price)
+            qty = usd_amount / price if price > 0 else 0.0
+        elif direction == "sell":
+            pos = self.balance.portfolio.get(base_symbol)
+            qty = pos.quantity if pos else 0.0
+            success = self.balance.sell(self.token_pair, qty, price) if qty > 0 else False
+        else:
+            self.balance.hold()
+            success = True
 
-            # Extract order ID from result
-            order_id = order_result.get('order_id') or order_result.get('txid', ['N/A'])[0]
+        if success:
+            self._mark_price = price
+            portfolio_value = self.balance._calc_portfolio_value({base_symbol: price})
+            total_balance = self.balance.cash_usd + portfolio_value
+            pnl_pct = self.balance.get_pnl_pct({base_symbol: price})
 
-            self.agent_logger.info(f"Order placed successfully | Order ID: {order_id}")
+            order_id = f"sim-{int(datetime.now().timestamp())}"
 
-            # Record trade to database
             trade_data = {
-                'agent_id': self.agent_id,
-                'pair': self.token_pair,
-                'direction': direction.upper(),
-                'amount': volume,
-                'entry_price': price if direction == 'buy' else None,
-                'exit_price': None if direction == 'buy' else price,
-                'pnl': None,
-                'status': 'OPEN' if direction == 'buy' else 'CLOSED',
-                'kraken_order_id': order_id,
-                'created_at': datetime.utcnow().isoformat()
+                "agent_id": self.agent_id,
+                "pair": self.token_pair,
+                "direction": direction.upper(),
+                "amount": usd_amount / price if direction == "buy" else qty,
+                "entry_price": price if direction == "buy" else None,
+                "exit_price": None if direction == "buy" else price,
+                "pnl": None,
+                "status": "OPEN" if direction == "buy" else "CLOSED",
+                "kraken_order_id": order_id,
+                "created_at": datetime.utcnow().isoformat(),
             }
-
             await self.save_trade_to_db(trade_data)
-
-            # Update tracking
-            if direction == 'buy':
-                self.position = {
-                    'amount': volume,
-                    'entry_price': price,
-                    'order_id': order_id
-                }
-                self.entry_price = price
 
             self.last_trade_at = datetime.utcnow()
             self.trade_count += 1
 
-            # Update agent stats
-            await self.update_agent_stats()
+            if direction == "buy":
+                self.position = {"amount": trade_data["amount"]}
+                self.entry_price = price
+            elif direction == "sell":
+                self.position = None
+                self.entry_price = 0.0
 
-        except KrakenCLIError as e:
-            self.agent_logger.error(f"Trade execution failed: {e.message}")
-            raise
+            await self._update_agent_stats_sim(price)
+        else:
+            self.agent_logger.warning(f"Trade failed for {direction} {self.token_pair}")
 
     async def check_stop_loss(self, current_price: float):
         """Check if stop loss threshold is breached and close position if so."""
@@ -400,25 +409,55 @@ class TradingAgent:
         except Exception as e:
             self.agent_logger.error(f"Failed to update agent status: {e}")
 
+    async def _update_agent_stats_sim(self, mark_price: float) -> None:
+        self._mark_price = mark_price
+        await self.update_agent_stats()
+
     async def update_agent_stats(self):
-        """Update agent statistics in agent_stats table."""
+        """Update agent statistics (paper: virtual balance; live: runner totals only)."""
         try:
+            base_symbol = self.token_pair.split("/")[0]
+            mark = getattr(self, "_mark_price", None)
+            if mark is None or mark <= 0:
+                mark = self.entry_price or 0.0
+            current_prices = {base_symbol: mark}
+
+            if self.balance is not None:
+                total_balance = self.balance.get_total_balance(current_prices)
+                portfolio_value = self.balance._calc_portfolio_value(current_prices)
+                pnl_pct = self.balance.get_pnl_pct(current_prices)
+                total_pnl_db = self.balance.get_pnl(current_prices)
+                trade_count_db = self.balance.total_trades
+            else:
+                total_balance = None
+                portfolio_value = None
+                pnl_pct = 0.0
+                total_pnl_db = self.total_pnl
+                trade_count_db = self.trade_count
+
             stats_data = {
-                'agent_id': self.agent_id,
-                'total_pnl': self.total_pnl,
-                'trade_count': self.trade_count,
-                'win_count': self.trade_count,  # Simplified - could track wins/losses separately
-                'loss_count': 0,
-                'last_trade_at': self.last_trade_at.isoformat() if self.last_trade_at else None,
-                'status': 'ACTIVE'
+                "agent_id": self.agent_id,
+                "total_pnl": total_pnl_db,
+                "trade_count": trade_count_db,
+                "win_count": self.trade_count,
+                "loss_count": 0,
+                "last_trade_at": self.last_trade_at.isoformat() if self.last_trade_at else None,
+                "status": "RUNNING",
             }
+            try:
+                stats_data["current_action"] = self.current_action
+                if total_balance is not None:
+                    stats_data["total_balance"] = total_balance
+                if portfolio_value is not None:
+                    stats_data["portfolio_value"] = portfolio_value
+                stats_data["pnl_pct"] = pnl_pct
+            except Exception:
+                pass
 
-            # Upsert to handle both new and existing records
-            self.supabase.table('agent_stats').upsert(
+            self.supabase.table("agent_stats").upsert(
                 stats_data,
-                on_conflict='agent_id'
+                on_conflict="agent_id",
             ).execute()
-
         except Exception as e:
             self.agent_logger.error(f"Failed to update agent stats: {e}")
 

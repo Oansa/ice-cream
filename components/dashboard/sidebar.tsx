@@ -1,46 +1,32 @@
 'use client';
 
-import Image from 'next/image';
 import {
   LayoutDashboard,
   Bot,
-  Coins,
+  Library,
   Shield,
   ListChecks,
   Database,
 } from 'lucide-react';
-import { ScrollArea } from '@/components/shared/ui/scroll-area';
 import { cn } from '@/lib/utils';
-import type { DashboardNavItem, WatchlistItem } from '@/data/dashboard/mock-data';
+import type { DashboardNavItem } from '@/data/dashboard/mock-data';
 
 const navIconByKey = {
   dashboard: LayoutDashboard,
   'agent-builder': Bot,
-  assets: Coins,
+  'agents-library': Library,
   staking: Shield,
   orders: ListChecks,
   'data-api': Database,
 } as const;
 
-const formatUsd = (value: number) =>
-  new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: value < 1 ? 3 : 2,
-  }).format(value);
-
-const formatPct = (value: number) =>
-  `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
-
 export const DashboardSidebar = ({
   activeKey,
   items,
-  watchlistItems,
   className,
 }: {
   activeKey: DashboardNavItem['key'];
   items: DashboardNavItem[];
-  watchlistItems: WatchlistItem[];
   className?: string;
 }) => {
   return (
@@ -53,17 +39,15 @@ export const DashboardSidebar = ({
       )}
     >
       <div className="flex items-center gap-3">
-        <div className="relative h-9 w-9 overflow-hidden rounded-xl ring-1 ring-primary-500/20">
-          <Image
-            src="/static/images/logo.png"
-            alt="Mevolut"
-            fill
-            className="object-cover"
-          />
+        <div
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary-500/25 to-secondary-500/20 text-base font-bold tabular-nums text-primary-700 ring-1 ring-primary-500/25 dark:text-primary-200"
+          aria-label="icecream"
+        >
+          I
         </div>
         <div className="leading-tight">
           <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-            Mevolut
+            icecream
           </div>
           <div className="text-xs text-gray-500 dark:text-gray-400">
             Trading desk
@@ -105,54 +89,7 @@ export const DashboardSidebar = ({
         })}
       </nav>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <div className="text-xs font-semibold tracking-wide text-gray-500 dark:text-gray-400">
-            Watchlist
-          </div>
-          <div className="text-xs text-gray-400 dark:text-gray-500">
-            24h
-          </div>
-        </div>
-
-        <ScrollArea className="min-h-0 flex-1">
-          <div className="flex flex-col gap-2 pr-3">
-            {watchlistItems.map((w) => {
-              const isUp = w.change24hPct >= 0;
-              return (
-                <div
-                  key={w.symbol}
-                  className="flex items-center gap-3 rounded-xl bg-white/60 px-3 py-2 ring-1 ring-gray-900/5 dark:bg-gray-950/30 dark:ring-white/10"
-                >
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-primary-500/20 to-secondary-500/20 text-xs font-semibold text-gray-900 dark:text-gray-100">
-                    {w.symbol}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
-                      {w.name}
-                    </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {formatUsd(w.price)}
-                    </div>
-                  </div>
-                  <div
-                    className={cn(
-                      'text-right text-xs font-medium tabular-nums',
-                      isUp
-                        ? 'text-emerald-600 dark:text-emerald-400'
-                        : 'text-red-600 dark:text-red-400',
-                    )}
-                  >
-                    {formatPct(w.change24hPct)}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </ScrollArea>
-      </div>
-
-      <div className="flex items-center justify-between gap-3 rounded-2xl bg-gradient-to-br from-primary-500/10 to-secondary-500/10 p-3 ring-1 ring-primary-500/10 dark:ring-primary-500/20">
+      <div className="mt-auto flex items-center justify-between gap-3 rounded-2xl bg-gradient-to-br from-primary-500/10 to-secondary-500/10 p-3 ring-1 ring-primary-500/10 dark:ring-primary-500/20">
         <div className="min-w-0">
           <div className="text-sm font-semibold text-gray-900 dark:text-gray-50">
             Pro signals
@@ -168,4 +105,3 @@ export const DashboardSidebar = ({
     </div>
   );
 };
-

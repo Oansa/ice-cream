@@ -4,7 +4,7 @@ import { DashboardShell } from '@/components/dashboard/shell';
 export const metadata = genPageMetadata({
   title: 'Dashboard',
   description:
-    'A compact, glassmorphic trading dashboard with staking insights, token rankings, and quick exchange actions.',
+    'Monitor running AI trading agents, P&L, and wallet balance in one place.',
 });
 
 export default function DashboardPage() {

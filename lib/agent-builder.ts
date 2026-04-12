@@ -63,9 +63,37 @@ export async function deployAgent(config: AgentConfig): Promise<DeployedAgent> {
     body: JSON.stringify(config),
   });
 
+  const contentType = response.headers.get('content-type') ?? '';
+  const isJson = contentType.includes('application/json');
+
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to deploy agent');
+    if (isJson) {
+      const errorBody = await response.json();
+      const message =
+        typeof errorBody?.error === 'string'
+          ? errorBody.error
+          : typeof errorBody?.message === 'string'
+            ? errorBody.message
+            : 'Failed to deploy agent';
+      throw new Error(message);
+    }
+    const text = await response.text();
+    const snippet = text.replace(/\s+/g, ' ').trim().slice(0, 240);
+    throw new Error(
+      snippet && !snippet.startsWith('<')
+        ? snippet
+        : `Deploy failed (${response.status}). The server did not return JSON—check the network tab for the response URL.`
+    );
+  }
+
+  if (!isJson) {
+    const text = await response.text();
+    const snippet = text.replace(/\s+/g, ' ').trim().slice(0, 240);
+    throw new Error(
+      snippet && !snippet.startsWith('<')
+        ? snippet
+        : 'Invalid response from deploy API (expected JSON).'
+    );
   }
 
   const data = await response.json();
